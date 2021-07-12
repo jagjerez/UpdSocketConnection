@@ -3,11 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30907.101
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Infraestructura", "Infraestructura\Infraestructura.csproj", "{896AE702-0C09-45F4-9CC1-F4AB0C6B480B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Infraestructura", "Infraestructura\Infraestructura.csproj", "{896AE702-0C09-45F4-9CC1-F4AB0C6B480B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Application1", "Application1\Application1.csproj", "{E05877CD-FCBB-43A7-9E2E-F29474204C1F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Application1", "Application1\Application1.csproj", "{E05877CD-FCBB-43A7-9E2E-F29474204C1F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Application2", "Application2\Application2.csproj", "{B81822F7-D873-41D0-8888-537A532D4887}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Application2", "Application2\Application2.csproj", "{B81822F7-D873-41D0-8888-537A532D4887}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApp", "ConsoleApp\ConsoleApp.csproj", "{6B7C11DE-0588-4D5E-A7B8-60F192F1E2CB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -27,6 +29,10 @@ Global
 		{B81822F7-D873-41D0-8888-537A532D4887}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B81822F7-D873-41D0-8888-537A532D4887}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B81822F7-D873-41D0-8888-537A532D4887}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B7C11DE-0588-4D5E-A7B8-60F192F1E2CB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B7C11DE-0588-4D5E-A7B8-60F192F1E2CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B7C11DE-0588-4D5E-A7B8-60F192F1E2CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B7C11DE-0588-4D5E-A7B8-60F192F1E2CB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

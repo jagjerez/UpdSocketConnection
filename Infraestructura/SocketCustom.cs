@@ -51,20 +51,20 @@ namespace Infraestructura
             //base.remoteReceivePort = configuration.GetValue<ushort>("SOCKET_REMOTE_PORT");
 
             //source data
-            base.sourceAddress = IPAddress.Parse(configuration.GetValue<string>("SOCKET_SOURCE_HOST"));
-            base.sourcePort = configuration.GetValue<ushort>("SOCKET_SOURCE_PORT");
+            base.sourceAddress = IPAddress.Parse(base.configuration.GetValue<string>("SOCKET_SOURCE_HOST"));
+            base.sourcePort = base.configuration.GetValue<ushort>("SOCKET_SOURCE_PORT");
 
             //destine data
-            base.destAddress = IPAddress.Parse(configuration.GetValue<string>("SOCKET_DESTINATION_HOST"));
-            base.destPort = configuration.GetValue<ushort>("SOCKET_DESTINATION_PORT");
+            base.destAddress = IPAddress.Parse(base.configuration.GetValue<string>("SOCKET_DESTINATION_HOST"));
+            base.destPort = base.configuration.GetValue<ushort>("SOCKET_DESTINATION_PORT");
             
             //binding data
             base.bindAddress = IPAddress.Any;
             
             //configuration data
-            base.messageSize = configuration.GetValue<int>("SOCKET_SEND_MESSAGE_SIZE");
-            base.messageReceiveSize = configuration.GetValue<int>("SOCKET_RECEIVE_MESSAGE_SIZE");
-            base.sendCount = configuration.GetValue<int>("SOCKET_NUMBER_SEND");
+            base.messageSize = base.configuration.GetValue<int>("SOCKET_SEND_MESSAGE_SIZE");
+            base.messageReceiveSize = base.configuration.GetValue<int>("SOCKET_RECEIVE_MESSAGE_SIZE");
+            base.sendCount = base.configuration.GetValue<int>("SOCKET_NUMBER_SEND");
             base.cancellationToken = cancellationToken;
             base.socketLevel = socketLevel;
             base.socketType = socketType;
