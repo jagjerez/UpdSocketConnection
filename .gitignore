@@ -342,3 +342,5 @@ healthchecksdb
 /Application1/fileOut.txt
 /Application2/fileIn.txt
 /Application2/fileOut.txt
+/Application1/appsettings.json
+/Application1/appsettings.Development.json
