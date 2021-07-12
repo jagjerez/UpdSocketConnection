@@ -47,8 +47,8 @@ namespace Infraestructura
             )
         {
             //remote data
-            base.remoteAdress = IPAddress.Parse(configuration.GetValue<string>("SOCKET_REMOTE_HOST"));
-            base.remotePort = configuration.GetValue<ushort>("SOCKET_REMOTE_PORT");
+            //base.remoteReceiveAdress = IPAddress.Parse(configuration.GetValue<string>("SOCKET_REMOTE_HOST"));
+            //base.remoteReceivePort = configuration.GetValue<ushort>("SOCKET_REMOTE_PORT");
 
             //source data
             base.sourceAddress = IPAddress.Parse(configuration.GetValue<string>("SOCKET_SOURCE_HOST"));
@@ -77,9 +77,9 @@ namespace Infraestructura
     }
     public abstract class SocketCustom
     {
-        internal IPAddress sourceAddress, destAddress, bindAddress, remoteAdress;
+        internal IPAddress sourceAddress, destAddress, bindAddress;
         internal readonly IConfiguration configuration;
-        internal ushort sourcePort, destPort,remotePort;
+        internal ushort sourcePort, destPort;
         internal int messageSize, sendCount;
         internal int messageReceiveSize;
         internal Socket socketInstance;
@@ -89,20 +89,31 @@ namespace Infraestructura
         internal ProtocolType protocolType = ProtocolType.Udp;
         internal SocketType socketType = SocketType.Raw;
         internal SocketOptionLevel socketLevel = SocketOptionLevel.IP;
+        internal Task thread;
 
         public bool IsConnected => this.socketInstance != null && this.socketInstance.Connected;
         public delegate void HandlerReceivedData(byte[] data,AddressFamily addressFamily);
         public event HandlerReceivedData DataReceived;
-        protected virtual void DispararDatosRecibidos(byte[] data, AddressFamily addressFamily)
+        
+        protected virtual void OnDataReceived(byte[] data, AddressFamily addressFamily)
         {
             HandlerReceivedData handler = DataReceived;
-            handler?.Invoke(data, addressFamily);
+            if(handler != null)
+            {
+                handler?.Invoke(data, addressFamily);
+            }
+        }
+
+        public void WaitReceived(int ms)
+        {
+            thread.Wait(ms);
         }
 
         public SocketCustom(IServiceProvider pProveedorServicios)
         {
             configuration = pProveedorServicios.GetService<IConfiguration>();
             logger = pProveedorServicios.GetService<ILogger<SocketCustom>>();
+            
 
         }
         public SocketCustom Send(byte[] data)
@@ -164,7 +175,7 @@ namespace Infraestructura
 
             // Bind the socket to the interface specified
             logger.Log(LogLevel.Information, "Binding the socket to the specified interface using Bind()...");
-            this.socketInstance.Bind(new IPEndPoint(sourceAddress, sourcePort));
+            this.socketInstance.Bind(new IPEndPoint(bindAddress, 0));
 
             // Set the HeaderIncluded option since we include the IP header
             logger.Log(LogLevel.Information, "Setting the HeaderIncluded option for IP header...");
@@ -177,7 +188,7 @@ namespace Infraestructura
 
         private void ReceiveData()
         {
-            State state = null;
+            
             int bufferSize = 0;
             // Start building the headers
             logger.Log(LogLevel.None, "Building the packet header...");
@@ -191,19 +202,44 @@ namespace Infraestructura
             {
                 bufferSize = UdpHeader.UdpHeaderLength + messageReceiveSize;
             }
-            state = new State(bufferSize);
-            EndPoint epFromMensaje = new IPEndPoint(remoteAdress, remotePort);
-            ArraySegment<byte> _buffer_recv_segment = new ArraySegment<byte>(state.buffer);
-            _ = Task.Run(async () =>
+            
+            thread = Task.Run(async () =>
               {
                   SocketReceiveMessageFromResult res;
                   while (!cancellationToken.IsCancellationRequested)
                   {
+                      
                       try
                       {
+                          State state = new State(bufferSize);
+                          EndPoint epFromMensaje = new IPEndPoint(bindAddress, 0);
+                          ArraySegment<byte> _buffer_recv_segment = new ArraySegment<byte>(state.buffer);
+                          bool enviar = true;
                           res = await this.socketInstance.ReceiveMessageFromAsync(_buffer_recv_segment, SocketFlags.None, epFromMensaje);
+                          UdpHeader udpHeader = UdpHeader.Create(state.buffer, res.RemoteEndPoint.AddressFamily);
+                          if(udpHeader.DestinationPort != sourcePort)
+                          {
+                              enviar = false;
+                          }
+                          Ipv4Header ipv4Header = null;
+                          if (enviar)
+                          {
+                              if (res.RemoteEndPoint.AddressFamily == AddressFamily.InterNetwork)
+                              {
+                                  int bytes = 0;
+                                  ipv4Header = Ipv4Header.Create(state.buffer, ref bytes);
+                                  if (!ipv4Header.DestinationAddress.ToString().Equals(sourceAddress.ToString()))
+                                  {
+                                      enviar = false;
+                                  }
+                              }
+                          }
+
                           //Array.Copy(_buffer_recv_segment.Array, 0, state.buffer, 0, res.ReceivedBytes);
-                          DispararDatosRecibidos(state.buffer, epFromMensaje.AddressFamily);
+                          if (enviar)
+                          {
+                              OnDataReceived(state.buffer, epFromMensaje.AddressFamily);
+                          }  
                       }
                       catch (Exception err)
                       {
@@ -354,10 +390,13 @@ namespace Infraestructura
                 ipv4Header = Ipv4Header.Create(ipV4, ref bytes);
                 stb.AppendLine($"|__________________________________________________________________________________________________");
                 stb.AppendLine($"|IpVx header -> Souce Ip:{ipv4Header.SourceAddress.ToString()}, Destine ip: {ipv4Header.DestinationAddress.ToString()}");
+                stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
                 stb.AppendLine($"|IpVx header in bytes -> {string.Join(",", ipV4)}");
-                stb.AppendLine($"|Estructure reference");
+                stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
+                stb.AppendLine($"|Estructure reference:");
                 stb.AppendLine($"     |Byte 1|     |Byte 2|   |Bytes 3 & 4| |Bytes 5 & 6| |Bytes 7 & 8|  |Byte 9| |Byte 10| |Bytes 11 & 12| |Bytes 13,14,15 & 16| |Bytes 17,18,19 & 20|");
                 stb.AppendLine($"|Version procol|Type service|Total length |      Id     |   Offset    |Ttl value|Protocolo|   Checksum    |    Source address   | Destination address |");
+                stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
                 stb.AppendLine($"|IpVx header length:{Ipv4Header.Ipv4HeaderLength} bytes");
                 
             }
@@ -375,17 +414,23 @@ namespace Infraestructura
             UdpHeader udpHeader = UdpHeader.Create(headerData, ref bytes);
             stb.AppendLine($"|__________________________________________________________________________________________________");
             stb.AppendLine($"|Upd deader -> source port:{udpHeader.SourcePort}, destine port:{udpHeader.DestinationPort}");
+            stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
             stb.AppendLine($"|Upd deader in byte -> {string.Join(",", headerData)}");
-            stb.AppendLine($"|Estructure reference");
+            stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
+            stb.AppendLine($"|Estructure reference:");
             stb.AppendLine($"  |Bytes 1 & 2|   |Bytes 3 & 4|    |Bytes 5 & 6|   |Bytes 7 y 8|");
             stb.AppendLine($"| Source port  |Destination port|Udp header length|   Checksum  |");
+            stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
             stb.AppendLine($"|Udp header length:{UdpHeader.UdpHeaderLength} bytes");
             stb.AppendLine($"|__________________________________________________________________________________________________");
             stb.AppendLine($"|Data -> {Encoding.ASCII.GetString(data).Trim()}");
+            stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
             stb.AppendLine($"|Udp data in byte -> {string.Join(",", data)}");
+            stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
             stb.AppendLine($"|Data length:{dataLength} bytes");
             return stb.ToString();
         }
+
     }
     public class State
     {

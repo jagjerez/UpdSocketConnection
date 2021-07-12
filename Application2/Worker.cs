@@ -21,11 +21,13 @@ namespace Application2
         internal SocketCustom socket;
         internal const string CONST_FILE_OUT = "fileOut.txt";
         internal const string CONST_FILE_IN = "fileIn.txt";
+        internal string afterMessage = "";
         public Worker(IServiceProvider pProveedorServicios)
         {
             _logger = pProveedorServicios.GetService<ILogger<Worker>>();
             socketFactory = pProveedorServicios.GetService<UDPSocketFactory>();
             socket = socketFactory.ConfigureSocket();
+
             socket.DataReceived += Socket_DataReceived;
             if (!File.Exists(CONST_FILE_OUT))
             {
@@ -39,7 +41,10 @@ namespace Application2
             {
                 string messageData = SocketCustom.Create(data, "Data received", addressFamily);
                 File.WriteAllText(CONST_FILE_OUT, messageData);
-                _logger.Log(LogLevel.Information,"{0}", messageData);
+                _logger.Log(LogLevel.Warning, "{0}", messageData);
+                afterMessage = messageData;
+                //Console.Clear();
+
             }
             catch (Exception ex)
             {
@@ -58,20 +63,16 @@ namespace Application2
             {
                 try
                 {
-                    //ushort port = 5001;
-                    //short portConverter = IPAddress.HostToNetworkOrder((short)port);
-                    //byte[] bitport = BitConverter.GetBytes(portConverter);
-                    //short portConverterOfByte = BitConverter.ToInt16(bitport, 0);
-                    //ushort portUnConverter = (ushort)IPAddress.NetworkToHostOrder(portConverterOfByte);
-                    //if(port != portUnConverter)
-                    //{
-                    //    throw new ApplicationException($"El puerto {port} no es igual a {portUnConverter}");
-                    //}
 
                     data = File.ReadAllBytes(CONST_FILE_IN);
                     if (data.Length > 0)
                     {
                         socket.Send(data);
+                    }
+                    if (!string.IsNullOrEmpty(afterMessage))
+                    {
+                        _logger.Log(LogLevel.Warning, "{0}", afterMessage);
+                        afterMessage = "";
                     }
                 }
                 catch (Exception ex)
@@ -79,7 +80,11 @@ namespace Application2
                     _logger.Log(LogLevel.None,"Error en el socket: {0}", ex.Message);
                 }
                 _logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
-                await Task.Delay(1000, stoppingToken);
+                
+                await Task.Delay(5000, stoppingToken);
+                Console.Clear();
+                
+                
             }
         }
     }

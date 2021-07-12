@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 
 namespace Infraestructura
@@ -205,6 +206,38 @@ namespace Infraestructura
             udpPacketHeader.udpChecksum = BitConverter.ToInt16(udpData, 6);
 
             bytesCopied = udpPacketHeader.Length;
+
+            return udpPacketHeader;
+
+        }
+
+        static public UdpHeader Create(byte[] udpData, AddressFamily addressFamily)
+
+        {
+
+            UdpHeader udpPacketHeader = new UdpHeader();
+
+            if(addressFamily == AddressFamily.InterNetwork)
+            {
+                udpPacketHeader.srcPort = BitConverter.ToInt16(udpData, Ipv4Header.Ipv4HeaderLength);
+
+                udpPacketHeader.destPort = BitConverter.ToInt16(udpData, Ipv4Header.Ipv4HeaderLength + 2);
+
+                udpPacketHeader.udpLength = BitConverter.ToInt16(udpData, Ipv4Header.Ipv4HeaderLength + 4);
+
+                udpPacketHeader.udpChecksum = BitConverter.ToInt16(udpData, Ipv4Header.Ipv4HeaderLength + 6);
+            }
+            else
+            {
+                udpPacketHeader.srcPort = BitConverter.ToInt16(udpData, 0);
+
+                udpPacketHeader.destPort = BitConverter.ToInt16(udpData, 2);
+
+                udpPacketHeader.udpLength = BitConverter.ToInt16(udpData, 4);
+
+                udpPacketHeader.udpChecksum = BitConverter.ToInt16(udpData, 6);
+            }
+            
 
             return udpPacketHeader;
 
