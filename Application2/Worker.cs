@@ -35,7 +35,7 @@ namespace Application2
             }
         }
 
-        private void Socket_DataReceived(byte[] data, AddressFamily addressFamily)
+        private void Socket_DataReceived(Mensaje data, AddressFamily addressFamily)
         {
             try
             {

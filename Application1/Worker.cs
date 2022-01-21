@@ -33,11 +33,11 @@ namespace Application1
             }
         }
 
-        private void Socket_DataReceived(byte[] data, AddressFamily addressFamily)
+        private void Socket_DataReceived(Mensaje mensaje, AddressFamily addressFamily)
         {
             try
             {
-                string messageData = SocketCustom.Create(data, "Data received", addressFamily);
+                string messageData = SocketCustom.Create(mensaje, "Data received", addressFamily);
                 File.WriteAllText(CONST_FILE_OUT, messageData);
                 _logger.Log(LogLevel.Warning, "{0}", messageData);
                 afterMessage = messageData;

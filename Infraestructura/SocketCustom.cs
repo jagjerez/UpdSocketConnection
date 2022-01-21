@@ -21,6 +21,7 @@ namespace Infraestructura
     {
         //singleton Instance
         private static UDPSocketFactory instance;
+        
         private UDPSocketFactory(IServiceProvider pProveedorServicios) : base(pProveedorServicios) { }
         public static UDPSocketFactory CrearInstance(IServiceProvider pProveedorServicios)
         {
@@ -77,6 +78,7 @@ namespace Infraestructura
     }
     public abstract class SocketCustom
     {
+        internal State state = null;
         internal IPAddress sourceAddress, destAddress, bindAddress;
         internal readonly IConfiguration configuration;
         internal ushort sourcePort, destPort;
@@ -90,17 +92,18 @@ namespace Infraestructura
         internal SocketType socketType = SocketType.Raw;
         internal SocketOptionLevel socketLevel = SocketOptionLevel.IP;
         internal Task thread;
-
+        internal EndPoint epFromMensaje;
+        internal int bufferSize = 0;
         public bool IsConnected => this.socketInstance != null && this.socketInstance.Connected;
-        public delegate void HandlerReceivedData(byte[] data,AddressFamily addressFamily);
+        public delegate void HandlerReceivedData(Mensaje mensaje, AddressFamily addressFamily);
         public event HandlerReceivedData DataReceived;
         
-        protected virtual void OnDataReceived(byte[] data, AddressFamily addressFamily)
+        protected virtual void OnDataReceived(Mensaje mensaje, AddressFamily addressFamily)
         {
             HandlerReceivedData handler = DataReceived;
             if(handler != null)
             {
-                handler?.Invoke(data, addressFamily);
+                handler?.Invoke(mensaje, addressFamily);
             }
         }
 
@@ -189,96 +192,120 @@ namespace Infraestructura
         private void ReceiveData()
         {
             
-            int bufferSize = 0;
-            // Start building the headers
-            logger.Log(LogLevel.None, "Building the packet header...");
-            byte[] payLoad = new byte[messageReceiveSize];
-            bufferSize = messageReceiveSize;
-            if (sourceAddress.AddressFamily == AddressFamily.InterNetwork)
-            {
-                bufferSize = Ipv4Header.Ipv4HeaderLength + UdpHeader.UdpHeaderLength + messageReceiveSize;
-            }
-            else if (sourceAddress.AddressFamily == AddressFamily.InterNetworkV6)
-            {
-                bufferSize = UdpHeader.UdpHeaderLength + messageReceiveSize;
-            }
+            //if (sourceAddress.AddressFamily == AddressFamily.InterNetwork)
+            //{
+            //    bufferSize = Ipv4Header.Ipv4HeaderLength + UdpHeader.UdpHeaderLength;
+            //}
+            //else if (sourceAddress.AddressFamily == AddressFamily.InterNetworkV6)
+            //{
+            //    bufferSize = UdpHeader.UdpHeaderLength;
+            //}
             
-            thread = Task.Run(async () =>
+            thread = Task.Run(() =>
               {
-                  SocketReceiveMessageFromResult res;
-                  while (!cancellationToken.IsCancellationRequested)
-                  {
-                      
-                      try
-                      {
-                          State state = new State(bufferSize);
-                          EndPoint epFromMensaje = new IPEndPoint(bindAddress, 0);
-                          ArraySegment<byte> _buffer_recv_segment = new ArraySegment<byte>(state.buffer);
-                          bool enviar = true;
-                          res = await this.socketInstance.ReceiveMessageFromAsync(_buffer_recv_segment, SocketFlags.None, epFromMensaje);
-                          UdpHeader udpHeader = UdpHeader.Create(state.buffer, res.RemoteEndPoint.AddressFamily);
-                          if(udpHeader.DestinationPort != sourcePort)
-                          {
-                              enviar = false;
-                          }
-                          Ipv4Header ipv4Header = null;
-                          if (enviar)
-                          {
-                              if (res.RemoteEndPoint.AddressFamily == AddressFamily.InterNetwork)
-                              {
-                                  int bytes = 0;
-                                  ipv4Header = Ipv4Header.Create(state.buffer, ref bytes);
-                                  if (!ipv4Header.DestinationAddress.ToString().Equals(sourceAddress.ToString()))
-                                  {
-                                      enviar = false;
-                                  }
-                              }
-                          }
+                  state = new State(socketInstance.ReceiveBufferSize);
+                  epFromMensaje = new IPEndPoint(bindAddress, 0);
+                  
+                  this.socketInstance.BeginReceiveMessageFrom(state.buffer, 0, state.buffer.Length, SocketFlags.None, ref epFromMensaje,Receive, state);
+                  //SocketReceiveMessageFromResult res;
+                  //while (!cancellationToken.IsCancellationRequested)
+                  //{
 
-                          //Array.Copy(_buffer_recv_segment.Array, 0, state.buffer, 0, res.ReceivedBytes);
-                          if (enviar)
-                          {
-                              OnDataReceived(state.buffer, epFromMensaje.AddressFamily);
-                          }  
-                      }
-                      catch (Exception err)
-                      {
-                          logger.Log(LogLevel.Error, "Received data error: {0}", err.Message);
-                      }
-                  }
+                  //    try
+                  //    {
+                  //        State state = new State(bufferSize);
+                  //        EndPoint epFromMensaje = new IPEndPoint(bindAddress, 0);
+                  //        ArraySegment<byte> _buffer_recv_segment = new ArraySegment<byte>(state.buffer);
+                  //        bool enviar = true;
+                  //        res = await this.socketInstance.ReceiveMessageFromAsync(_buffer_recv_segment, SocketFlags.None, epFromMensaje);
+                  //        UdpHeader udpHeader = UdpHeader.Create(state.buffer, res.RemoteEndPoint.AddressFamily);
+                  //        if(udpHeader.DestinationPort != sourcePort)
+                  //        {
+                  //            enviar = false;
+                  //        }
+                  //        Ipv4Header ipv4Header = null;
+                  //        if (enviar)
+                  //        {
+                  //            if (res.RemoteEndPoint.AddressFamily == AddressFamily.InterNetwork)
+                  //            {
+                  //                int bytes = 0;
+                  //                ipv4Header = Ipv4Header.Create(state.buffer, ref bytes);
+                  //                if (!ipv4Header.DestinationAddress.ToString().Equals(sourceAddress.ToString()))
+                  //                {
+                  //                    enviar = false;
+                  //                }
+                  //            }
+                  //        }
+
+                  //        //Array.Copy(_buffer_recv_segment.Array, 0, state.buffer, 0, res.ReceivedBytes);
+                  //        if (enviar)
+                  //        {
+                  //            OnDataReceived(state.buffer, epFromMensaje.AddressFamily);
+                  //        }  
+                  //    }
+                  //    catch (Exception err)
+                  //    {
+                  //        logger.Log(LogLevel.Error, "Received data error: {0}", err.Message);
+                  //    }
+                  //}
               });
              
             
         }
 
-        //private void Receive(IAsyncResult ar)
-        //{
+        private void Receive(IAsyncResult ar)
+        {
+            if (ar.IsCompleted)
+            {
+                lock (this.socketInstance)
+                {
+                    State so = (State)ar.AsyncState;
+                    bool enviar = true;
+                    try
+                    {
+
+                        if (this.socketInstance != null)
+                        {
+                            IPPacketInformation iPPacketInformation = new IPPacketInformation();
+                            SocketFlags socketFlags = SocketFlags.None;
+                            var i = this.socketInstance.EndReceiveMessageFrom(ar, ref socketFlags, ref epFromMensaje, out iPPacketInformation);
+                            if(i > 0)
+                            {
+                                state = new State(socketInstance.ReceiveBufferSize);
+                                this.socketInstance.BeginReceiveMessageFrom(state.buffer, 0, state.buffer.Length, SocketFlags.None, ref epFromMensaje, Receive, state);
+                                Mensaje mensaje = CreateMessaje(so.buffer, epFromMensaje.AddressFamily);
+                                if (mensaje.CabeceraUdp.DestinationPort != sourcePort)
+                                {
+                                    enviar = false;
+                                }
+                                if (enviar)
+                                {
+                                    if (mensaje.TipoProtocoloUsado == AddressFamily.InterNetwork)
+                                    {
+                                        if (!mensaje.CabeceraIpV4.DestinationAddress.ToString().Equals(sourceAddress.ToString()))
+                                        {
+                                            enviar = false;
+                                        }
+                                    }
+                                }
+                                if (enviar)
+                                {
+
+                                    OnDataReceived(mensaje, epFromMensaje.AddressFamily);
+                                }
+                            }
+                        }
+
+                    }
+                    catch (SocketException ex)
+                    {
+                        logger.LogError(ex.Message);
+                        this.socketInstance.BeginReceiveFrom(so.buffer, 0, so.buffer.Length, SocketFlags.None, ref epFromMensaje, Receive, so);
+                    }
+                }
+            }
             
-        //    //lock (this.socketInstance)
-        //    //{
-        //    //    State so = (State)ar.AsyncState;
-        //    //    EndPoint epFromMensaje = new IPEndPoint(remoteAdress, remotePort);
-        //    //    try
-        //    //    {
-                    
-        //    //        if (this.socketInstance != null)
-        //    //        {
-                        
-                        
-                        
-        //    //            //int numberBytesReceive = this.socketInstance.EndReceiveFrom(ar, ref epFromMensaje);
-        //    //            this.socketInstance.BeginReceiveFrom(so.buffer, 0, so.buffer.Length, SocketFlags.None, ref epFromMensaje, Receive, so);
-        //    //            DispararDatosRecibidos(so.buffer, epFromMensaje.AddressFamily);
-        //    //        }
-                    
-        //    //    }
-        //    //    catch (SocketException ex)
-        //    //    {
-        //    //        logger.LogError(ex.Message);
-        //    //        this.socketInstance.BeginReceiveFrom(so.buffer, 0, so.buffer.Length, SocketFlags.None, ref epFromMensaje, Receive, so);
-        //    //    }
-        //    //}
-        //}
+        }
 
         private byte[] GeneratePackage(byte[] data)
         {
@@ -430,6 +457,119 @@ namespace Infraestructura
             stb.AppendLine($"|Data length:{dataLength} bytes");
             return stb.ToString();
         }
+        public static string Create(Mensaje mensaje, string title, AddressFamily addressFamily)
+        {
+            StringBuilder stb = new StringBuilder();
+            //int bytes = 0;
+            //int dataLength = 0;
+            //byte[] ipV4 = new byte[Ipv4Header.Ipv4HeaderLength];
+            //byte[] headerData = new byte[UdpHeader.UdpHeaderLength];
+            //byte[] data = null;
+            Ipv4Header ipv4Header = null;
+
+            stb.AppendLine($"|{title}:");
+
+            if (addressFamily == AddressFamily.InterNetwork)
+            {
+                //dataLength = allData.Length - (Ipv4Header.Ipv4HeaderLength + UdpHeader.UdpHeaderLength);
+                //data = new byte[dataLength];
+                //Array.Copy(allData, 0, ipV4, 0, Ipv4Header.Ipv4HeaderLength);
+                //Array.Copy(allData, Ipv4Header.Ipv4HeaderLength, headerData, 0, UdpHeader.UdpHeaderLength);
+                //Array.Copy(allData, (Ipv4Header.Ipv4HeaderLength + UdpHeader.UdpHeaderLength), data, 0, data.Length);
+                //ipv4Header = Ipv4Header.Create(ipV4, ref bytes);
+                ipv4Header = mensaje.CabeceraIpV4;
+                stb.AppendLine($"|__________________________________________________________________________________________________");
+                stb.AppendLine($"|IpVx header -> Souce Ip:{ipv4Header.SourceAddress.ToString()}, Destine ip: {ipv4Header.DestinationAddress.ToString()}");
+                stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
+                stb.AppendLine($"|IpVx header in bytes -> {string.Join(",", mensaje.BytesCabeceraIp)}");
+                stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
+                stb.AppendLine($"|Estructure reference:");
+                stb.AppendLine($"     |Byte 1|     |Byte 2|   |Bytes 3 & 4| |Bytes 5 & 6| |Bytes 7 & 8|  |Byte 9| |Byte 10| |Bytes 11 & 12| |Bytes 13,14,15 & 16| |Bytes 17,18,19 & 20|");
+                stb.AppendLine($"|Version procol|Type service|Total length |      Id     |   Offset    |Ttl value|Protocolo|   Checksum    |    Source address   | Destination address |");
+                stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
+                stb.AppendLine($"|IpVx header length:{Ipv4Header.Ipv4HeaderLength} bytes");
+
+            }
+            else if (addressFamily == AddressFamily.InterNetworkV6)
+            {
+                throw new ApplicationException("No implementation");
+            }
+            else
+            {
+                throw new ApplicationException("No implementation");
+            }
+            UdpHeader udpHeader = mensaje.CabeceraUdp;
+            stb.AppendLine($"|__________________________________________________________________________________________________");
+            stb.AppendLine($"|Upd deader -> source port:{udpHeader.SourcePort}, destine port:{udpHeader.DestinationPort}");
+            stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
+            stb.AppendLine($"|Upd deader in byte -> {string.Join(",", mensaje.BytesCabeceraUdp)}");
+            stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
+            stb.AppendLine($"|Estructure reference:");
+            stb.AppendLine($"  |Bytes 1 & 2|   |Bytes 3 & 4|    |Bytes 5 & 6|   |Bytes 7 y 8|");
+            stb.AppendLine($"| Source port  |Destination port|Udp header length|   Checksum  |");
+            stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
+            stb.AppendLine($"|Udp header length:{UdpHeader.UdpHeaderLength} bytes");
+            stb.AppendLine($"|__________________________________________________________________________________________________");
+            stb.AppendLine($"|Data -> {mensaje.Datos}");
+            stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
+            stb.AppendLine($"|Udp data in byte -> {string.Join(",", mensaje.BytesDatos)}");
+            stb.AppendLine($"|--------------------------------------------------------------------------------------------------");
+            stb.AppendLine($"|Data length:{mensaje.BytesDatos.Length} bytes");
+            return stb.ToString();
+        }
+        public static Mensaje CreateMessaje(byte[] allData, AddressFamily addressFamily)
+        {
+            Mensaje resultado = new Mensaje();
+            int bytes = 0;
+            int dataLength = 0;
+            byte[] ipV4 = new byte[Ipv4Header.Ipv4HeaderLength];
+            byte[] headerData = new byte[UdpHeader.UdpHeaderLength];
+            byte[] data = null;
+            Ipv4Header ipv4Header = null;
+            resultado.TipoProtocoloUsado = addressFamily;
+            if (addressFamily == AddressFamily.InterNetwork)
+            {
+                dataLength = allData.Length - (Ipv4Header.Ipv4HeaderLength + UdpHeader.UdpHeaderLength);
+                data = new byte[dataLength];
+                Array.Copy(allData, 0, ipV4, 0, Ipv4Header.Ipv4HeaderLength);
+                Array.Copy(allData, Ipv4Header.Ipv4HeaderLength, headerData, 0, UdpHeader.UdpHeaderLength);
+                Array.Copy(allData, (Ipv4Header.Ipv4HeaderLength + UdpHeader.UdpHeaderLength), data, 0, data.Length);
+                ipv4Header = Ipv4Header.Create(ipV4, ref bytes);
+                resultado.CabeceraIpV4 = ipv4Header;
+                resultado.BytesCabeceraIp = ipV4;
+            }
+            else if (addressFamily == AddressFamily.InterNetworkV6)
+            {
+                throw new ApplicationException("No implementation");
+            }
+            else
+            {
+                dataLength = allData.Length - UdpHeader.UdpHeaderLength;
+                data = new byte[dataLength];
+                Array.Copy(allData, 0, headerData, 0, UdpHeader.UdpHeaderLength);
+                Array.Copy(allData, UdpHeader.UdpHeaderLength, data, 0, data.Length);
+            }
+            UdpHeader udpHeader = UdpHeader.Create(headerData, ref bytes);
+            resultado.CabeceraUdp = udpHeader;
+            resultado.BytesCabeceraUdp = headerData;
+            var i = data.Length - 1;
+            while (data[i] == 0)
+            {
+                --i;
+            }
+            var temp = new byte[i + 1];
+            Array.Copy(data, temp, i + 1);
+            i = temp.Length - 1;
+            while (temp[i] == 10)
+            {
+                --i;
+            }
+            var temp2 = new byte[i + 1];
+            Array.Copy(temp, temp2, i + 1);
+            resultado.Datos = Encoding.ASCII.GetString(temp2);
+            resultado.BytesDatos = temp2;
+            return resultado;
+        }
 
     }
     public class State
@@ -439,5 +579,16 @@ namespace Infraestructura
             buffer = new byte[numeroBytes];
         }
         public byte[] buffer;
+    }
+    public class Mensaje
+    {
+        public UdpHeader CabeceraUdp { get; set; }
+        public byte[] BytesCabeceraUdp { get; set; }
+        public Ipv4Header CabeceraIpV4 { get; set; }
+        public Ipv6Header CabeceraIpV6 { get; set; }
+        public byte[] BytesCabeceraIp { get; set; }
+        public AddressFamily TipoProtocoloUsado { get; set; }
+        public string Datos { get; set; }
+        public byte[] BytesDatos { get; set; }
     }
 }

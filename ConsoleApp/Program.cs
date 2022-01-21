@@ -26,8 +26,8 @@ namespace ConsoleApp
 
                 return builder.Build();
             });
-            serviceDescriptors.AddSingleton<UDPSocketFactory>((sp) => UDPSocketFactory.CrearInstance(sp));
-            serviceDescriptors.AddSingleton<ScreenFactory>();
+            serviceDescriptors.AddTransient<UDPSocketFactory>((sp) => UDPSocketFactory.CrearInstance(sp));
+            serviceDescriptors.AddTransient<ScreenFactory>();
             serviceDescriptors.AddTransient<MenuInit>();
             serviceDescriptors.AddTransient<WriteMessageForSend>();
             serviceDescriptors.AddLogging(sp => sp.AddConsole());

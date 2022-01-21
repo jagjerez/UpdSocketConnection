@@ -24,7 +24,7 @@ namespace ConsoleApp.Screens
             
         }
 
-        private void UDPSocketFactory_DataReceived(byte[] data, System.Net.Sockets.AddressFamily addressFamily)
+        private void UDPSocketFactory_DataReceived(Mensaje data, System.Net.Sockets.AddressFamily addressFamily)
         {
             try
             {
